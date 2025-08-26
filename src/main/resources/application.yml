@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: ecommerce-saas
+  datasource:
+    url: jdbc:mysql://localhost:3306/ecommerce_db?useSSL=false&serverTimezone=UTC
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        filters:
+          tenantFilter:
+            condition: client_id = :currentTenant
+  task:
+    execution:
+      thread-name-prefix: async-
+      virtual:
+        enabled: true
+  cache:
+    type: redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+jwt:
+  secret: your_super_secret_key_256_bits_or_more
+  expiry:
+    access: 900  # 15 min in seconds
+    refresh: 604800  # 7 days
+resilience4j:
+  ratelimiter:
+    instances:
+      loginLimiter:
+        limitForPeriod: 5
+        limitRefreshPeriod: PT1M  # 1 min refresh
+        timeoutDuration: 0
+server:
+  port: 8080

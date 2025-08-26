@@ -1,0 +1,4 @@
+package com.saas.ecommerce.utils;
+
+public class TenantInterceptor {
+}
