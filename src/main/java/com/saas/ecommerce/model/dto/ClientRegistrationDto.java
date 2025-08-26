@@ -1,4 +1,3 @@
 package com.saas.ecommerce.model.dto;
 
-public class ClientRegistrationDto {
-}
+public record ClientRegistrationDto(String name, String email, String password) {}

@@ -1,4 +1,3 @@
 package com.saas.ecommerce.model.dto;
 
-public class LoginDto {
-}
+public record LoginDto(String email, String password) {}

@@ -1,4 +1,3 @@
 package com.saas.ecommerce.model.dto;
 
-public class TokenResponse {
-}
+public record TokenResponse(String accessToken, String refreshToken) {}

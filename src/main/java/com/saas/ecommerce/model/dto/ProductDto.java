@@ -1,4 +1,3 @@
 package com.saas.ecommerce.model.dto;
 
-public class ProductDto {
-}
+public record ProductDto(String name, double price, String description) {}
