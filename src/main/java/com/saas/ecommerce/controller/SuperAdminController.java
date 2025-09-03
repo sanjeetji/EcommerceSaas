@@ -1,11 +1,15 @@
 package com.saas.ecommerce.controller;
 
-import com.saas.ecommerce.model.dto.ClientRegistrationDto;
-import com.saas.ecommerce.model.dto.ClientLoginDto;
+import com.saas.ecommerce.model.dto.*;
+import com.saas.ecommerce.model.entity.Client;
+import com.saas.ecommerce.model.entity.User;
 import com.saas.ecommerce.service.ClientService;
-import com.saas.ecommerce.service.JwtService;
+import com.saas.ecommerce.service.KeyGeneratorService;
+import com.saas.ecommerce.service.SuperAdminService;
+import com.saas.ecommerce.service.UserService;
 import com.saas.ecommerce.utils.HandleApiResponse;
 import com.saas.ecommerce.utils.globalExceptionHandller.CustomBusinessException;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,25 +18,34 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 import static com.saas.ecommerce.utils.Constant.*;
 
 @RestController
-@RequestMapping("/api/client")
-public class ClientController {
+@RequestMapping("/api/admin")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
+public class SuperAdminController {
+
+    private static final Logger logger = LoggerFactory.getLogger(SuperAdminController.class);
 
     @Autowired
-    private ClientService service;
+    private UserService userService;
 
     @Autowired
-    private JwtService jwtService;
+    private ClientService clientService;
 
     @Autowired
     private HandleApiResponse handleApiResponse;
 
-    private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
+    @Autowired
+    private KeyGeneratorService keyGeneratorService;
+
+    @Autowired
+    private SuperAdminService service;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody ClientRegistrationDto dto) {
+    public ResponseEntity<?> register(@RequestBody SuperAdminRegistrationDto dto) {
         try {
             var response = service.register(dto);
             return handleApiResponse.handleApiSuccessResponse(HttpStatus.CREATED, REGISTRATION_SUCCESS, response);
@@ -44,7 +57,8 @@ public class ClientController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody ClientLoginDto dto) {
+    @RateLimiter(name = "loginLimiter")
+    public ResponseEntity<?> login(@RequestBody SuperAdminLoginDto dto) {
         try {
             var response = service.login(dto);
             return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, LOGIN_SUCCESS, response);
@@ -55,26 +69,33 @@ public class ClientController {
         }
     }
 
-    @PostMapping("/user_list")
-    @PreAuthorize("hasRole('CLIENT')")
-    public ResponseEntity<?> userList(@RequestHeader("Authorization") String authorizationHeader) {
+    @PostMapping("/rotate-key")
+    public ResponseEntity<String> rotateKeyManually() {
+        keyGeneratorService.rotateKeyManually();
+        return ResponseEntity.ok("JWT secret key rotated successfully");
+    }
+
+    @GetMapping("/user_list")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<?> getAllUsers() {
         try {
-            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-                return handleApiResponse.handleApiFailedResponse(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
-            }
-            String token = authorizationHeader.substring(7);
-            Long clientId = jwtService.extractClientId(token);
-            if (clientId == null || clientId == 0L) {
-                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Invalid client ID in token");
-            }
-            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, service.fetchUsers(clientId));
+            List<User> users = userService.getUsers(null);
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, users);
         } catch (Exception e) {
             return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
-    @GetMapping("/test")
-    public ResponseEntity<String> test() {
-        return ResponseEntity.ok("Test Data is success.");
+    @GetMapping("/all_clients")
+    public ResponseEntity<?> getAllClients() {
+        try {
+            List<Client> clients = clientService.getAllClients();
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, clients);
+        } catch (Exception e) {
+            return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
+
+
+
 }

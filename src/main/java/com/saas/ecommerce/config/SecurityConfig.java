@@ -1,6 +1,9 @@
 package com.saas.ecommerce.config;
 
 import com.saas.ecommerce.service.JwtService;
+import com.saas.ecommerce.session.SessionPolicy;
+import com.saas.ecommerce.session.SessionStore;
+import com.saas.ecommerce.utils.Constant;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -11,35 +14,37 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import static com.saas.ecommerce.utils.Constant.PUBLIC_URLS;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    public TokenValidationFilter tokenValidationFilter(JwtService jwtService) {
-        return new TokenValidationFilter(jwtService);
+    public TokenValidationFilter tokenValidationFilter(
+            JwtService jwtService,
+            SessionStore sessionStore,
+            SessionPolicy sessionPolicy) {
+        return new TokenValidationFilter(jwtService,sessionStore,sessionPolicy);
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   TokenValidationFilter tokenValidationFilter) throws Exception {
-        http
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, TokenValidationFilter tokenValidationFilter) throws Exception {
+                http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/clients/register",
-                                "/api/clients/test",
-                                "/api/auth/login",
-                                "/api/auth/refresh",
-                                "/actuator/health"
-                        ).permitAll()
-                        .requestMatchers("/api/users/**", "/api/products/**").authenticated()
+                        .requestMatchers(PUBLIC_URLS).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole(Constant.ROLE_SUPER_ADMIN)
+                        .requestMatchers("/api/client/**").hasAnyRole(Constant.ROLE_SUPER_ADMIN,Constant.ROLE_CLIENT)
+                        .requestMatchers("/api/user/**").hasAnyRole(Constant.ROLE_SUPER_ADMIN,Constant.ROLE_CLIENT, Constant.ROLE_ADMIN, Constant.ROLE_USER)
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(tokenValidationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
+
 }

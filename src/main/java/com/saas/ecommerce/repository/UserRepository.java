@@ -1,13 +1,18 @@
 package com.saas.ecommerce.repository;
 
+import com.saas.ecommerce.model.entity.Client;
 import com.saas.ecommerce.model.entity.User;
-import org.hibernate.annotations.Filter;
-import org.hibernate.annotations.FilterDef;
-import org.hibernate.annotations.ParamDef;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
-@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "currentTenant", type = Long.class))
-@Filter(name = "tenantFilter", condition = "client_id = :currentTenant")
+import java.util.List;
+import java.util.Optional;
+
 public interface UserRepository extends JpaRepository<User, Long> {
-    User findByUsername(String username);
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    User findByEmail(String email);
+
+    @Query("SELECT u FROM User u WHERE u.clientId = :clientId")
+    Optional<List<User>> findByClientId(Long clientId);
+
 }

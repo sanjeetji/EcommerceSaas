@@ -1,12 +1,11 @@
 package com.saas.ecommerce.model.dto;
 
-public record UserDto(
+public record UserRegistrationResponse(
+        Long id,
         String name,
-        String phoneNumber,
         String email,
+        String phoneNumber,
         String gender,
         String dob,
-        String password,
-        String roles,
-        String apiKey
+        String createdAt
 ) {}
