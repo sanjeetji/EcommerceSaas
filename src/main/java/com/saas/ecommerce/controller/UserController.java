@@ -2,8 +2,8 @@ package com.saas.ecommerce.controller;
 
 import com.saas.ecommerce.model.dto.*;
 import com.saas.ecommerce.model.entity.Client;
-import com.saas.ecommerce.model.entity.User;
 import com.saas.ecommerce.repository.ClientRepository;
+import com.saas.ecommerce.service.JwtService;
 import com.saas.ecommerce.service.UserService;
 import com.saas.ecommerce.utils.Constant;
 import com.saas.ecommerce.utils.HandleApiResponse;
@@ -16,8 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -34,6 +32,8 @@ public class UserController {
     private ClientRepository clientRepository;
     @Autowired
     private HandleApiResponse handleApiResponse;
+    @Autowired
+    private JwtService jwtService;
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     @PostMapping("/register")
@@ -87,19 +87,51 @@ public class UserController {
         }
     }
 
-    @GetMapping("/user_list")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> fetchUsers() {
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> fetchUsers(@RequestHeader("Authorization") String authorizationHeader) {
         try {
-            List<User> users = service.getUsers(null);
-            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, users);
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
+            }
+            String token = authorizationHeader.substring(7);
+            Long clientId = jwtService.extractClientId(token);
+            if (clientId == null || clientId == 0L) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Invalid client ID in token");
+            }
+            var response = service.fetchUsers(clientId);
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, response);
+        } catch (Exception e) {
+            return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    @GetMapping("/user")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public ResponseEntity<?> fetchUser(@RequestHeader("Authorization") String authorizationHeader, @RequestParam("id") Long userid) {
+        try {
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
+            }
+            String token = authorizationHeader.substring(7);
+            Long clientId = jwtService.extractClientId(token);
+            if (clientId == null || clientId == 0L) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Invalid client ID in token");
+            }
+            if (userid == null || userid == 0L){
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Missing or invalid user id");
+            }
+            var response = service.fetchUserByClientIdAndUserId(clientId,userid);
+            if (response == null) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.NOT_FOUND, "User not found");
+            }
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, response);
         } catch (Exception e) {
             return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         try {
             service.deleteUser(id);

@@ -17,16 +17,15 @@ public class Constant {
 
 
     public static final String[] PUBLIC_URLS = {
+            "/api/super-admin/register",
+            "/api/super-admin/login",
             "/api/client/register",
             "/api/client/login",
-            //"/api/client/test",
+            "/api/user/register",
+            "/api/user/login",
             "/api/auth/login",
             "/api/auth/refresh",
             "/actuator/health",
-            "/api/user/register",
-            "/api/user/login",
-            "/api/admin/register",
-            "/api/admin/login",
             "/error",
             "/v3/api-docs/**",
             "/swagger-ui/**",

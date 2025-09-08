@@ -9,9 +9,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "clients")
@@ -57,7 +55,11 @@ public class Client implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority(Constant.ROLE_CLIENT));
+        return Arrays.stream(roles.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> new SimpleGrantedAuthority("ROLE_" + s))
+                .toList();
     }
 
     @Override
@@ -89,4 +91,12 @@ public class Client implements UserDetails {
     public boolean isEnabled() {
         return active;
     }
+
+    @PrePersist
+    public void prePersist() {
+        if (roles == null || roles.isBlank()) {
+            roles = Constant.ROLE_CLIENT; // "CLIENT"
+        }
+    }
+
 }

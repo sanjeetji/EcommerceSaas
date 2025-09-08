@@ -55,9 +55,9 @@ public class ClientController {
         }
     }
 
-    @PostMapping("/user_list")
-    @PreAuthorize("hasRole('CLIENT')")
-    public ResponseEntity<?> userList(@RequestHeader("Authorization") String authorizationHeader) {
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    public ResponseEntity<?> getUserList(@RequestHeader("Authorization") String authorizationHeader) {
         try {
             if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
                 return handleApiResponse.handleApiFailedResponse(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
@@ -67,7 +67,33 @@ public class ClientController {
             if (clientId == null || clientId == 0L) {
                 return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Invalid client ID in token");
             }
-            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, service.fetchUsers(clientId));
+            var response = service.fetchUsers(clientId);
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, response);
+        } catch (Exception e) {
+            return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    @GetMapping("/user")
+    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    public ResponseEntity<?> getUserById(@RequestHeader("Authorization") String authorizationHeader, @RequestParam("id") Long id) {
+        try {
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
+            }
+            String token = authorizationHeader.substring(7);
+            Long clientId = jwtService.extractClientId(token);
+            if (clientId == null || clientId == 0L) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Invalid client ID in token");
+            }
+            if (id == null || id == 0L){
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.BAD_REQUEST, "Missing or invalid user id");
+            }
+            var response = service.fetchUsersById(clientId,id);
+            if (response == null) {
+                return handleApiResponse.handleApiFailedResponse(HttpStatus.NOT_FOUND, "User not found");
+            }
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, response);
         } catch (Exception e) {
             return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }

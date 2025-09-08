@@ -1,14 +1,8 @@
 package com.saas.ecommerce.service;
 
 import com.saas.ecommerce.model.dto.TokenResponse;
-import com.saas.ecommerce.model.entity.Client;
-import com.saas.ecommerce.model.entity.RefreshToken;
-import com.saas.ecommerce.model.entity.SuperAdmin;
-import com.saas.ecommerce.model.entity.User;
-import com.saas.ecommerce.repository.ClientRepository;
-import com.saas.ecommerce.repository.RefreshTokenRepository;
-import com.saas.ecommerce.repository.SuperAdminRepository;
-import com.saas.ecommerce.repository.UserRepository;
+import com.saas.ecommerce.model.entity.*;
+import com.saas.ecommerce.repository.*;
 import com.saas.ecommerce.session.SessionPolicy;
 import com.saas.ecommerce.session.SessionStore;
 import com.saas.ecommerce.utils.Constant;
@@ -160,7 +154,8 @@ public class RefreshTokenService {
             u.setToken(t.getToken());
             u.setAccessToken(jwtService.generateAccessToken(subject, clientId, userId, roles, t.getSid()));
             userRepository.save(u);
-        } else if (t.getSuperAdmin() != null) {
+        }
+        else if (t.getSuperAdmin() != null) {
             SuperAdmin sa = t.getSuperAdmin();
             subject = sa.getUsername();
             userId = sa.getId();
@@ -204,13 +199,13 @@ public class RefreshTokenService {
             u.setAccessToken(newAccess);
             u.setToken(newRefresh);
             userRepository.save(u);
-        } else if (t.getSuperAdmin() != null) {
+        }
+        else if (t.getSuperAdmin() != null) {
             SuperAdmin sa = t.getSuperAdmin();
             sa.setAccessToken(newAccess);
             sa.setToken(newRefresh);
             superAdminRepository.save(sa);
         }
-
         return new TokenResponse(newAccess, newRefresh);
     }
 }

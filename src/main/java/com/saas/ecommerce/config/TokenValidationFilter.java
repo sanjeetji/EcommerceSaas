@@ -1,32 +1,31 @@
 package com.saas.ecommerce.config;
 
+import com.saas.ecommerce.security.AuthPrincipal;
 import com.saas.ecommerce.service.JwtService;
 import com.saas.ecommerce.session.SessionPolicy;
 import com.saas.ecommerce.session.SessionStore;
 import com.saas.ecommerce.utils.TenantContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
-import jakarta.persistence.EntityManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.hibernate.Session;
-import org.hibernate.UnknownFilterException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.PathContainer;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.saas.ecommerce.utils.Constant.PUBLIC_URLS;
 import static com.saas.ecommerce.utils.Constant.ROLE_SUPER_ADMIN;
@@ -39,15 +38,17 @@ public class TokenValidationFilter extends OncePerRequestFilter {
     private final SessionPolicy sessionPolicy;
     private final List<PathPattern> publicPatterns;
     private final PathPatternParser pathPatternParser;
+    private final RoleHierarchy roleHierarchy;
 
-    @Autowired
-    private EntityManager entityManager;
-
-    public TokenValidationFilter(JwtService jwtService, SessionStore sessionStore, SessionPolicy sessionPolicy) {
+    public TokenValidationFilter(JwtService jwtService,
+                                 SessionStore sessionStore,
+                                 SessionPolicy sessionPolicy,
+                                 RoleHierarchy roleHierarchy) {
         this.jwtService = jwtService;
         this.sessionStore = sessionStore;
         this.sessionPolicy = sessionPolicy;
         this.pathPatternParser = new PathPatternParser();
+        this.roleHierarchy = roleHierarchy;
         this.publicPatterns = Arrays.stream(PUBLIC_URLS)
                 .map(p -> p.startsWith("/") ? p : "/" + p)
                 .map(pathPatternParser::parse)
@@ -59,142 +60,99 @@ public class TokenValidationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
-        String servletPath = request.getServletPath();
-        PathContainer path = PathContainer.parsePath(servletPath);
 
-        // Public endpoints bypass
-        if (publicPatterns.stream().anyMatch(pattern -> pattern.matches(path))) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Skipping token validation for public endpoint: {}", servletPath);
-            }
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // Bypass CORS preflight
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        PathContainer path = PathContainer.parsePath(request.getServletPath());
+        if (publicPatterns.stream().anyMatch(p -> p.matches(path)) ||
+                "OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String header = request.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) {
-            logger.warn("Missing or invalid Authorization header for URI: {}", servletPath);
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid Authorization header");
+            sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid Authorization header");
             return;
         }
 
         String token = header.substring(7);
         try {
             if (!jwtService.isTokenValid(token)) {
-                logger.warn("Invalid or expired token for URI: {}", servletPath);
-                sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
+                sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
                 return;
             }
 
             Claims claims = jwtService.extractAllClaims(token);
-            String roles = claims.get("roles", String.class);
-            Long clientId = claims.get("clientId", Long.class);
+
+            Object rolesClaim = claims.get("roles"); // "ADMIN,USER" or a list
+            List<String> roleNames = toRoleList(rolesClaim);
+            boolean isSuper = roleNames.contains(ROLE_SUPER_ADMIN) || roleNames.contains("ROLE_" + ROLE_SUPER_ADMIN);
+
+            Long clientId = claims.get("clientId", Long.class); // null for super
+            Long userId   = claims.get("userId",   Long.class); // optional
             String username = claims.getSubject();
             String tokenSid = claims.get("sid", String.class);
 
-            boolean isSuper = roles != null && (roles.contains(ROLE_SUPER_ADMIN));
             if (!isSuper && clientId == null) {
-                logger.error("Client ID is null in JWT for URI: {}", servletPath);
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Client ID is missing in token");
+                sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Client ID is missing in token");
                 return;
             }
 
-            // Enforce single-active-session if applicable
-            boolean enforce = sessionPolicy.enforceFor(clientId, username);
-            if (enforce) {
+            // single-active-session
+            if (sessionPolicy.enforceFor(clientId, username)) {
                 String expectedSid = sessionStore.getSid(username);
                 if (expectedSid == null || tokenSid == null || !tokenSid.equals(expectedSid)) {
-                    logger.warn("Session mismatch for user '{}': token sid={}, expected sid={}",
-                            username, tokenSid, expectedSid);
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
-                            "Session expired or logged in elsewhere");
+                    sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Session expired or logged in elsewhere");
                     return;
                 }
             }
 
-            // Set TenantContext and manage tenant filter
-            Session session = entityManager.unwrap(Session.class);
-            if (isSuper) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Super Admin access, disabling tenant filter");
-                }
-                TenantContext.setCurrentTenant(0L);
-                try {
-                    session.disableFilter("tenantFilter");
-                    logger.debug("Tenant filter disabled for super admin");
-                } catch (UnknownFilterException e) {
-                    logger.warn("Tenant filter not found, proceeding without disabling: {}", e.getMessage());
-                }
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Client access, attempting to enable tenant filter for clientId: {}", clientId);
-                }
-                TenantContext.setCurrentTenant(clientId);
-                try {
-                    session.enableFilter("tenantFilter").setParameter("currentTenant", clientId);
-                    logger.debug("Tenant filter enabled for clientId: {}", clientId);
-                } catch (UnknownFilterException e) {
-                    logger.error("Failed to enable tenant filter for clientId {}: {}", clientId, e.getMessage());
-                    sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Tenant filter configuration error");
-                    return;
-                }
-            }
+            // Request-scoped context (for logs/metrics only)
+            TenantContext.setCurrentTenant(isSuper ? null : clientId);
 
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+            // Build ROLE_* authorities and expand with hierarchy
+            var baseAuths = roleNames.stream()
+                    .map(r -> r.startsWith("ROLE_") ? r : "ROLE_" + r)
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
+
+            var expanded = roleHierarchy.getReachableGrantedAuthorities(baseAuths);
+
+            var principal = new AuthPrincipal(
                     username,
-                    null,
-                    jwtService.getAuthorities(roles)
+                    clientId,
+                    userId,
+                    normalizeRoles(roleNames),
+                    tokenSid
             );
-            auth.setDetails(new JwtDetails(clientId, tokenSid));
+
+            var auth = new UsernamePasswordAuthenticationToken(principal, null, expanded);
             SecurityContextHolder.getContext().setAuthentication(auth);
-            if (logger.isDebugEnabled()) {
-                logger.debug("Token validated for user: {}, roles: {}, clientId: {}", username, roles, clientId);
-            }
+
             filterChain.doFilter(request, response);
         } catch (JwtException e) {
-            logger.error("Token validation failed for URI: {}: {}", servletPath, e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
+            sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
         } finally {
             TenantContext.clear();
-            try {
-                Session session = entityManager.unwrap(Session.class);
-                session.disableFilter("tenantFilter");
-                logger.debug("Tenant filter disabled in finally block");
-            } catch (UnknownFilterException e) {
-                logger.warn("Tenant filter not found in finally block: {}", e.getMessage());
-            }
         }
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
+    private static List<String> toRoleList(Object rolesClaim) {
+        if (rolesClaim == null) return List.of();
+        if (rolesClaim instanceof Collection<?> c) {
+            return c.stream().map(String::valueOf).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        }
+        String s = String.valueOf(rolesClaim);
+        if (s.isBlank()) return List.of();
+        return Arrays.stream(s.split(",")).map(String::trim).filter(x -> !x.isEmpty()).toList();
+    }
+
+    private static List<String> normalizeRoles(List<String> raw) {
+        return raw.stream().map(r -> r.startsWith("ROLE_") ? r.substring(5) : r).toList();
+    }
+
+    private void sendError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(
-                String.format("{\"success\": false, \"message\": \"%s\"}", message)
-        );
-    }
-
-    static class JwtDetails {
-        private final Long clientId;
-        private final String sid;
-
-        public JwtDetails(Long clientId, String sid) {
-            this.clientId = clientId;
-            this.sid = sid;
-        }
-
-        public Long getClientId() {
-            return clientId;
-        }
-
-        public String getSid() {
-            return sid;
-        }
+        response.getWriter().write("{\"success\": false, \"message\": \"" + message + "\"}");
     }
 }

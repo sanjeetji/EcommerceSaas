@@ -17,7 +17,9 @@ public enum ErrorCode {
     INTERNAL_ERROR(500, "An unexpected error occurred."),
     RECEIVER_NOT_FOUND(600, "Receiver is not founded."),
     SENDER_RECEIVER_PHONE_NO_CAN_NOT_BE_SAME(601, "Sender and receiver's phone no should be different."),
-    USERS_ARE_NOT_FOUND(1001, "There is no any user.");
+    USERS_ARE_NOT_FOUND(1001, "There is no any user."),
+    INVALID_ROLE(1002,"Invalid role"),
+    ACCESS_DENIED(1003,"Access denied");
 
 
 

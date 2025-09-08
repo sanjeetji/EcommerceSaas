@@ -23,8 +23,7 @@ import java.util.List;
 import static com.saas.ecommerce.utils.Constant.*;
 
 @RestController
-@RequestMapping("/api/admin")
-@PreAuthorize("hasRole('SUPER_ADMIN')")
+@RequestMapping("/api/super-admin")
 public class SuperAdminController {
 
     private static final Logger logger = LoggerFactory.getLogger(SuperAdminController.class);
@@ -75,18 +74,27 @@ public class SuperAdminController {
         return ResponseEntity.ok("JWT secret key rotated successfully");
     }
 
-    @GetMapping("/user_list")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @GetMapping("/users")
     public ResponseEntity<?> getAllUsers() {
         try {
-            List<User> users = userService.getUsers(null);
+            List<User> users = service.getAllUsers();
             return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, users);
         } catch (Exception e) {
             return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
-    @GetMapping("/all_clients")
+    @GetMapping("/user")
+    public ResponseEntity<?> getUsersByClientId(@RequestParam("client_id") Long clientId) {
+        try {
+            List<User> users = service.getUsersByClientId(clientId);
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, "SUCCESS", users);
+        } catch (Exception e) {
+            return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    @GetMapping("/clients")
     public ResponseEntity<?> getAllClients() {
         try {
             List<Client> clients = clientService.getAllClients();
@@ -96,6 +104,15 @@ public class SuperAdminController {
         }
     }
 
+    @GetMapping("/client")
+    public ResponseEntity<?> getClientById(@RequestParam("id") Long id) {
+        try {
+            Client client = clientService.findById(id);
+            return handleApiResponse.handleApiSuccessResponse(HttpStatus.OK, SUCCESS, client);
+        } catch (Exception e) {
+            return handleApiResponse.handleApiFailedResponse(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
 
 
 }

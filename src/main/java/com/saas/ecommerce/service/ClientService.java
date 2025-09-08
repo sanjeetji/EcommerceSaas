@@ -130,7 +130,12 @@ public class ClientService implements UserDetailsService {
     }
 
     public List<User> fetchUsers(Long clientId) {
-        return userService.getUsers(clientId);
+        return userService.fetchUsers(clientId);
     }
+
+    public User fetchUsersById(Long clientId, Long id) {
+        return userService.fetchUserByClientIdAndUserId(clientId, id);
+    }
+
 
 }

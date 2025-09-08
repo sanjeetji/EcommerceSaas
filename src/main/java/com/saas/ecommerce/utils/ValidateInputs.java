@@ -7,6 +7,8 @@ import com.saas.ecommerce.utils.globalExceptionHandller.ErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
+
 @Component
 public class ValidateInputs {
 
@@ -37,6 +39,9 @@ public class ValidateInputs {
     public void handleUserRegistration(UserDto dto, Long clientId) {
         if (clientId == null) {
             throw new CustomBusinessException(ErrorCode.FAILED_TO_REGISTER, HttpStatus.BAD_REQUEST, "Client ID must be set for user creation");
+        }
+        if (!Set.of("ADMIN", "USER").contains(dto.roles().toUpperCase())) {
+            throw new CustomBusinessException(ErrorCode.INVALID_ROLE, HttpStatus.BAD_REQUEST, "Role must be ADMIN or USER");
         }
         if (dto.name() == null || dto.name().isEmpty()) {
             throw new CustomBusinessException(ErrorCode.FAILED_TO_REGISTER, HttpStatus.BAD_REQUEST, "name is required");

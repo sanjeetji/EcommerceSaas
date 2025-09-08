@@ -26,14 +26,14 @@ public class RefreshToken {
     private String sid;
 
     @ManyToOne
+    @JoinColumn(name = "super_admin_id")
+    private SuperAdmin superAdmin;
+
+    @ManyToOne
     @JoinColumn(name = "client_id")
     private Client client;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
-
-    @ManyToOne
-    @JoinColumn(name = "super_admin_id")
-    private SuperAdmin superAdmin;
 }

@@ -20,7 +20,7 @@ public class JwtKeyHealthIndicator implements HealthIndicator {
     private static final String REDIS_KEY = "jwt:secret";
 
     private final KeyGeneratorService keyService;
-    private final RedisTemplate<String, String> redisTemplate; // may be null
+    private final RedisTemplate<String, String> redisTemplate; // maybe null
 
     public JwtKeyHealthIndicator(KeyGeneratorService keyService,
                                  ObjectProvider<RedisTemplate<String, String>> redisProvider) {

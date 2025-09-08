@@ -4,14 +4,13 @@ import com.saas.ecommerce.model.dto.*;
 import com.saas.ecommerce.model.entity.RefreshToken;
 import com.saas.ecommerce.model.entity.User;
 import com.saas.ecommerce.repository.UserRepository;
+import com.saas.ecommerce.security.TenantGuard;
 import com.saas.ecommerce.session.SessionStore;
 import com.saas.ecommerce.utils.ValidateInputs;
 import com.saas.ecommerce.utils.globalExceptionHandller.CustomBusinessException;
 import com.saas.ecommerce.utils.globalExceptionHandller.ErrorCode;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -24,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+
+import static com.saas.ecommerce.security.AuthContext.*;
 
 @Service
 public class UserService implements UserDetailsService {
@@ -46,18 +47,17 @@ public class UserService implements UserDetailsService {
     @Autowired
     private SessionStore sessionStore;
 
+    @Autowired
+    private TenantGuard tenantGuard;
 
-    /**
-     * Using @CacheEvict(value = "usersList", allEntries = true)
-     * to Clears entire user list cache on any new user creation,
-     * Because we are fetching a user list using @Cacheable on getUsers(),
-     * instead of DB query every time to reduce db coast.
-     * It will help to get the latest user data just like we are fetching data from DB, without db query,
-     */
+
     @Transactional
-    @CacheEvict(value = "usersList", allEntries = true)
     public UserRegistrationResponse createUser(UserDto dto, Long clientId) {
         validateInputs.handleUserRegistration(dto,clientId);
+        // If caller is authenticated and not SUPER_ADMIN, enforce same tenant
+        if (!isSuperAdmin() && principal() != null) {
+            tenantGuard.sameTenantOrSuper(clientId); // throws 403 if cross-tenant
+        }
         if (repository.findByEmail(dto.email()) != null) {
             throw new CustomBusinessException(ErrorCode.USER_IS_ALREADY_REGISTER, HttpStatus.CONFLICT, "User already exists");
         }
@@ -113,7 +113,6 @@ public class UserService implements UserDetailsService {
         );
     }
 
-    @Cacheable("users")
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = repository.findByEmail(username);
@@ -121,25 +120,32 @@ public class UserService implements UserDetailsService {
         return user;
     }
 
-    /**
-     * Using @CacheEvict(value = "usersList", allEntries = true)
-     * to Clears entire user list cache on any new user creation,
-     * Because we are fetching a user list using @Cacheable on getUsers(),
-     * instead of DB query every time to reduce db coast.
-     * It will help to get the latest user data just like we are fetching data from DB, without db query,
-     */
-    @CacheEvict(value = "usersList", allEntries = true)
     public void deleteUser(Long id) {
-        repository.deleteById(id);
+        var p = principal();
+        var user = repository.findById(id).orElseThrow(() ->
+                new CustomBusinessException(ErrorCode.USER_IS_NOT_FOUND, HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!isSuperAdmin()) {
+            if (p == null || p.clientId() == null || !p.clientId().equals(user.getClientId())) {
+                throw new CustomBusinessException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "Cross-tenant access denied");
+            }
+        }
+        repository.delete(user);
     }
 
-    @Cacheable(value = "usersList", key = "#root.methodName + '-' + (#clientId ?: 'all')")
-    public List<User> getUsers(Long clientId) {
-        if (clientId == null) {
-            return repository.findAll();
-        } else {
-            return repository.findByClientId(clientId).orElse(Collections.emptyList());
+    public List<User> fetchUsers(Long clientId) {
+        if (isSuperAdmin()) {
+            return (clientId == null) ? repository.findAll()
+                    : repository.findByClientId(clientId).orElse(Collections.emptyList());
         }
+        Long mine = clientIdOrNull();
+        if (mine == null) return Collections.emptyList();
+        return repository.findByClientId(mine).orElse(Collections.emptyList());
     }
+
+    public User fetchUserByClientIdAndUserId(Long clientId, Long id) {
+        return repository.fetchUserByClientIdAndUserId(clientId, id).orElse(null);
+    }
+
 
 }

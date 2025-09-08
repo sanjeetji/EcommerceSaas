@@ -95,7 +95,7 @@ public class SuperAdminService implements UserDetailsService {
             sessionStore.setSid(superAdmin.getEmail(), sid, Duration.ofDays(30));
 
             RefreshToken refresh = refreshService.createRefreshToken(superAdmin, sid);
-            String access = jwtService.generateAccessToken(superAdmin.getEmail(), superAdmin.getId(), superAdmin.getId(), Constant.ROLE_SUPER_ADMIN, sid);
+            String access = jwtService.generateAccessToken(superAdmin.getEmail(), 0L, superAdmin.getId(), Constant.ROLE_SUPER_ADMIN, sid);
             superAdmin.setAccessToken(access);
             superAdmin.setToken(refresh.getToken());
             superAdmin = repository.save(superAdmin);
@@ -132,9 +132,9 @@ public class SuperAdminService implements UserDetailsService {
         return clientRepository.findAll();
     }
 
-    public List<User> fetchAllUsers() {return userRepository.findAll();}
+    public List<User> getAllUsers() {return userRepository.findAll();}
 
-    public List<User> fetchUsers(Long clientId) {return userRepository.findByClientId(clientId).orElse(Collections.emptyList());}
+    public List<User> getUsersByClientId(Long clientId) {return userRepository.findByClientId(clientId).orElse(Collections.emptyList());}
 
     public User fetchUserById(Long id) {return userRepository.findById(id).orElse(null);}
 

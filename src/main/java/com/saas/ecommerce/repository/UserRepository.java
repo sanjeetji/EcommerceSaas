@@ -1,6 +1,5 @@
 package com.saas.ecommerce.repository;
 
-import com.saas.ecommerce.model.entity.Client;
 import com.saas.ecommerce.model.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,5 +13,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.clientId = :clientId")
     Optional<List<User>> findByClientId(Long clientId);
+
+    @Query("SELECT u FROM User u WHERE u.clientId = :clientId AND u.id = :id")
+    Optional<User> fetchUserByClientIdAndUserId(Long clientId, Long id);
 
 }

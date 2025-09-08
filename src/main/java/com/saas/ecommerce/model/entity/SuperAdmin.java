@@ -4,6 +4,8 @@ import com.saas.ecommerce.utils.Constant;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.proxy.HibernateProxy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
@@ -61,8 +63,8 @@ public class SuperAdmin implements UserDetails {
     @Column(nullable = false)
     private String password;
     @Override
-    public Collection<? extends org.springframework.security.core.GrantedAuthority> getAuthorities() {
-        return List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + roles));
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + Constant.ROLE_SUPER_ADMIN));
     }
     @Override
     public String getUsername() {
@@ -92,4 +94,12 @@ public class SuperAdmin implements UserDetails {
     public final int hashCode() {
         return this instanceof HibernateProxy ? ((HibernateProxy) this).getHibernateLazyInitializer().getPersistentClass().hashCode() : getClass().hashCode();
     }
+
+    @PrePersist
+    public void prePersist() {
+        if (roles == null || roles.isBlank()) {
+            roles = Constant.ROLE_SUPER_ADMIN; // "SUPER_ADMIN"
+        }
+    }
+
 }
