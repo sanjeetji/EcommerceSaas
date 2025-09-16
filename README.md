@@ -69,3 +69,6 @@ On production server, set SPRING_PROFILES_ACTIVE=prod
 
 **To check health of the server**
 http://localhost:8080/actuator/health
+
+create JWT_SECRECT KEY for prod using this command
+JWT_SECRET=<base64 32-byte> (e.g. from **openssl rand -base64 32**)
