@@ -29,6 +29,19 @@
 	<properties>
 		<java.version>21</java.version>
 	</properties>
+	<!-- Define profiles here -->
+	<profiles>
+		<!-- Define production profile -->
+		<profile>
+			<id>production</id>
+			<properties>
+				<spring.profiles.active>prod</spring.profiles.active>
+				<!-- Other production-specific properties go here -->
+			</properties>
+		</profile>
+
+		<!-- You can define other profiles here -->
+	</profiles>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
