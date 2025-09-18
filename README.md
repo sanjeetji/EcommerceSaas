@@ -70,5 +70,57 @@ On production server, set SPRING_PROFILES_ACTIVE=prod
 **To check health of the server**
 http://localhost:8080/actuator/health
 
-create JWT_SECRECT KEY for prod using this command
+1. create JWT_SECRECT KEY for prod using this command
 JWT_SECRET=<base64 32-byte> (e.g. from **openssl rand -base64 32**)
+
+
+
+1. Please set the environment variable as per running environment
+
+#For Dev Profile:
+#export SPRING_PROFILES_ACTIVE=dev
+#mvn spring-boot:run
+#For Prod Profile:
+#export SPRING_PROFILES_ACTIVE=prod
+#mvn spring-boot:run
+
+Option 2: Set via application.properties
+Alternatively, in local dev, you can directly set the profile in application.properties:
+# application.properties
+spring.profiles.active=dev
+
+
+This will be ignored if you pass the SPRING_PROFILES_ACTIVE variable via the command line, but it’s a useful fallback.
+
+
+2. Railway (Production Environment)
+For Railway (or any production environment), you’ll generally set environment variables through their dashboard or CLI.
+Option 1: Set via Railway Dashboard
+Go to your Railway project dashboard.
+
+Under the Environment Variables section, add the following:
+Key: SPRING_PROFILES_ACTIVE
+Value: prod
+This will ensure that prod settings are used when you deploy the app.
+Option 2: Set via Railway CLI
+If you're using the Railway CLI to deploy, you can set environment variables before pushing your app:
+railway variables set SPRING_PROFILES_ACTIVE=prod
+Then push your changes to Railway.
+
+
+Prod (Railway / Docker / VM):
+Export these (example):
+export SPRING_PROFILES_ACTIVE=prod
+export MYSQLHOST=maglev.proxy.rlwy.net
+export MYSQLPORT=10939
+export MYSQLDATABASE=ecommerce_db
+export MYSQLUSER=root
+export MYSQLPASSWORD=superSecret
+export JWT_SECRET=base64_or_long_random_string
+export APP_SESSION_STORE=db
+export APP_LOG_LEVEL=INFO
+
+Then:
+java -jar app.jar
+# or
+mvn spring-boot:run

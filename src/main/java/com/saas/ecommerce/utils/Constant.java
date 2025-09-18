@@ -21,6 +21,7 @@ public class Constant {
             "/api/super-admin/login",
             "/api/client/register",
             "/api/client/login",
+            "/api/client/test",
             "/api/user/register",
             "/api/user/login",
             "/api/auth/login",
